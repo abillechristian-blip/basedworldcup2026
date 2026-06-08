@@ -1,6 +1,75 @@
 import { useState, useRef, useEffect } from "react";
 import { saveState, listenState } from "./firebase";
 
+const API_KEY = "4dcd408df3dd4a8bbc912c3e957bb7bd";
+
+// Map football-data.org team names to our app team names
+const TEAM_NAME_MAP = {
+  "France":"France","Spain":"Spain","England":"England","Brazil":"Brazil",
+  "Portugal":"Portugal","Netherlands":"Netherlands","Argentina":"Argentina","Germany":"Germany",
+  "Norway":"Norway","Belgium":"Belgium","Senegal":"Senegal","Turkey":"Türkiye","Türkiye":"Türkiye",
+  "Morocco":"Morocco","Colombia":"Colombia","Uruguay":"Uruguay","Ecuador":"Ecuador",
+  "Switzerland":"Switzerland","Croatia":"Croatia","Ivory Coast":"Ivory Coast","Côte d'Ivoire":"Ivory Coast",
+  "Japan":"Japan","Sweden":"Sweden","United States":"USA","USA":"USA","Austria":"Austria","Mexico":"Mexico",
+  "Algeria":"Algeria","Scotland":"Scotland","Paraguay":"Paraguay","Czechia":"Czechia","Czech Republic":"Czechia",
+  "Canada":"Canada","Korea Republic":"South Korea","South Korea":"South Korea","DR Congo":"Congo DR","Congo DR":"Congo DR",
+  "Australia":"Australia","Egypt":"Egypt","Uzbekistan":"Uzbekistan","Ghana":"Ghana",
+  "Bosnia and Herzegovina":"Bosnia & Herz","Bosnia & Herzegovina":"Bosnia & Herz",
+  "Panama":"Panama","Iran":"Iran","Jordan":"Jordan","Tunisia":"Tunisia",
+  "New Zealand":"New Zealand","Haiti":"Haiti","Saudi Arabia":"Saudi Arabia","Iraq":"Iraq",
+  "South Africa":"South Africa","Cape Verde":"Cape Verde","Curaçao":"Curaçao","Qatar":"Qatar",
+};
+
+async function fetchWCResults() {
+  try {
+    const res = await fetch("https://api.football-data.org/v4/competitions/WC/matches?status=FINISHED", {
+      headers: { "X-Auth-Token": API_KEY }
+    });
+    if (!res.ok) throw new Error(`API error: ${res.status}`);
+    const data = await res.json();
+    return data.matches || [];
+  } catch (err) {
+    console.error("API fetch error:", err);
+    return null;
+  }
+}
+
+function processMatches(matches, currentTeamPoints) {
+  const teamStats = {};
+
+  matches.forEach(match => {
+    const homeRaw = match.homeTeam?.name;
+    const awayRaw = match.awayTeam?.name;
+    const home = TEAM_NAME_MAP[homeRaw] || homeRaw;
+    const away = TEAM_NAME_MAP[awayRaw] || awayRaw;
+    const hScore = match.score?.fullTime?.home;
+    const aScore = match.score?.fullTime?.away;
+    if (hScore === null || hScore === undefined) return;
+
+    [home, away].forEach(t => {
+      if (!teamStats[t]) teamStats[t] = { w:0, d:0, l:0 };
+    });
+
+    if (hScore > aScore) {
+      teamStats[home].w++; teamStats[away].l++;
+    } else if (hScore < aScore) {
+      teamStats[away].w++; teamStats[home].l++;
+    } else {
+      teamStats[home].d++; teamStats[away].d++;
+    }
+  });
+
+  // Build updated teamPoints
+  const updated = { ...currentTeamPoints };
+  Object.entries(teamStats).forEach(([team, record]) => {
+    const pts = record.w * 3 + record.d;
+    const prev = updated[team] || { pts:0, stage:"Groups", champ:false, w:0, d:0, l:0 };
+    updated[team] = { ...prev, pts: pts + (prev.champ ? 6 : 0), w: record.w, d: record.d, l: record.l };
+  });
+
+  return updated;
+}
+
 // ── 2026 TEAMS (ESPN Rankings) ────────────────────────────────────────────────
 const WC2026_TEAMS = [
   // Pot 1 — Elite (ESPN Top 8)
@@ -114,26 +183,59 @@ export default function App() {
   const [manualStage, setManualStage] = useState("Groups");
   const [manualChamp, setManualChamp] = useState(false);
   const [openBreakdown, setOpenBreakdown]       = useState(null);
+  const [syncing, setSyncing]     = useState(false);
+  const [syncMsg, setSyncMsg]     = useState("");
+
+  const syncResults = async () => {
+    setSyncing(true);
+    setSyncMsg("Fetching latest results...");
+    const matches = await fetchWCResults();
+    if (!matches) {
+      setSyncMsg("❌ API unavailable — update manually");
+      setSyncing(false);
+      setTimeout(() => setSyncMsg(""), 4000);
+      return;
+    }
+    if (matches.length === 0) {
+      setSyncMsg("No finished matches yet");
+      setSyncing(false);
+      setTimeout(() => setSyncMsg(""), 3000);
+      return;
+    }
+    const updated = processMatches(matches, teamPoints);
+    setTeamPoints(updated);
+    setSyncMsg(`✅ Synced ${matches.length} matches`);
+    setSyncing(false);
+    setTimeout(() => setSyncMsg(""), 4000);
+  };
   const [editingResultsFor, setEditingResultsFor] = useState(null);
   const dragTeam = useRef(null);
   const dragFrom = useRef(null);
 
   // ── FIREBASE SYNC ──────────────────────────────────────────────────────────
+  const loaded = useRef(false);
+
   useEffect(() => {
     try {
       listenState((data) => {
         try {
-          if (data.players && Array.isArray(data.players) && data.players.length > 0) {
-            // Ensure every player has a teams array
+          if (!data) return; // null/empty — skip
+
+          // Only update players if Firebase has valid non-empty player data
+          if (data.players && Array.isArray(data.players) && data.players.length === 8) {
             const safePlayers = data.players.map(p => ({
-              ...p,
-              teams: Array.isArray(p.teams) ? p.teams : [],
+              name: p.name || "",
+              teams: Array.isArray(p.teams) ? p.teams.filter(t => typeof t === "string") : [],
             }));
             setPlayers(safePlayers);
           }
-          if (data.teamPoints && typeof data.teamPoints === "object") {
+
+          // Only update teamPoints if it's a real object with keys
+          if (data.teamPoints && typeof data.teamPoints === "object" && Object.keys(data.teamPoints).length > 0) {
             setTeamPoints(prev => ({ ...prev, ...data.teamPoints }));
           }
+
+          loaded.current = true;
         } catch (err) {
           console.error("Firebase data parse error:", err);
         }
@@ -143,15 +245,20 @@ export default function App() {
     }
   }, []);
 
-  // Save to Firebase whenever state changes (skip first render)
+  // Save to Firebase only after first load, with a small debounce
   const isFirstRender = useRef(true);
+  const saveTimer = useRef(null);
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
-    try {
-      saveState(players, teamPoints);
-    } catch (err) {
-      console.error("Firebase save error:", err);
-    }
+    // Debounce saves by 500ms to avoid rapid fire writes
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      try {
+        saveState(players, teamPoints);
+      } catch (err) {
+        console.error("Firebase save error:", err);
+      }
+    }, 500);
   }, [players, teamPoints]);
 
   const assignedTeams = new Set(players.flatMap(p => p.teams));
@@ -508,6 +615,20 @@ export default function App() {
           {/* ── LEADERBOARD TAB ── */}
           {tab === "leaderboard" && (
             <>
+              {/* Sync bar */}
+              <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16, padding:"12px 16px", background:"#0d1424", border:"1px solid #1a2540", borderRadius:10 }}>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:"#e8eaf0" }}>Live Results Sync</div>
+                  <div style={{ fontSize:11, color:"#4a5880", marginTop:2 }}>
+                    {syncMsg || "Pull latest match results from football-data.org"}
+                  </div>
+                </div>
+                <button onClick={syncResults} disabled={syncing}
+                  style={{ background: syncing ? "#1a2540" : "#c8a951", border:"none", borderRadius:8, color: syncing ? "#4a5880" : "#080c14", fontFamily:"'Barlow Condensed',sans-serif", fontSize:15, fontWeight:800, letterSpacing:1, padding:"10px 18px", cursor: syncing ? "not-allowed" : "pointer", whiteSpace:"nowrap" }}>
+                  {syncing ? "⏳ Syncing..." : "🔄 Sync Results"}
+                </button>
+              </div>
+
               {leaderboard.length === 0 ? (
                 <div style={{ textAlign:"center", padding:"60px 20px", color:"#2a3550" }}>Add players in the Draw Results tab first.</div>
               ) : (
