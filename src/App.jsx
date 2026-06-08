@@ -119,19 +119,39 @@ export default function App() {
   const dragFrom = useRef(null);
 
   // ── FIREBASE SYNC ──────────────────────────────────────────────────────────
-  // On mount: listen for real-time updates from Firebase
   useEffect(() => {
-    listenState((data) => {
-      if (data.players)    setPlayers(data.players);
-      if (data.teamPoints) setTeamPoints(data.teamPoints);
-    });
+    try {
+      listenState((data) => {
+        try {
+          if (data.players && Array.isArray(data.players) && data.players.length > 0) {
+            // Ensure every player has a teams array
+            const safePlayers = data.players.map(p => ({
+              ...p,
+              teams: Array.isArray(p.teams) ? p.teams : [],
+            }));
+            setPlayers(safePlayers);
+          }
+          if (data.teamPoints && typeof data.teamPoints === "object") {
+            setTeamPoints(prev => ({ ...prev, ...data.teamPoints }));
+          }
+        } catch (err) {
+          console.error("Firebase data parse error:", err);
+        }
+      });
+    } catch (err) {
+      console.error("Firebase listener error:", err);
+    }
   }, []);
 
-  // Whenever players or teamPoints change, save to Firebase
+  // Save to Firebase whenever state changes (skip first render)
   const isFirstRender = useRef(true);
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
-    saveState(players, teamPoints);
+    try {
+      saveState(players, teamPoints);
+    } catch (err) {
+      console.error("Firebase save error:", err);
+    }
   }, [players, teamPoints]);
 
   const assignedTeams = new Set(players.flatMap(p => p.teams));
