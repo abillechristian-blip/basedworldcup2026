@@ -192,7 +192,7 @@ export default function App() {
   const [currentPot, setCurrentPot]           = useState(0); // 0-5
   const [flippingCard, setFlippingCard]       = useState(null);
 
-  const POTS_ORDER = ["pot1","pot2","pot3","pot4","pot5","pot6"];
+  const POTS_ORDER = ["pot6","pot5","pot4","pot3","pot2","pot1"]; // Revealed in reverse — builds tension
 
   const randomizeDraw = () => {
     const playerNames = players.map(p => p.name);
@@ -730,6 +730,18 @@ export default function App() {
           {/* ── LEADERBOARD TAB ── */}
           {tab === "leaderboard" && (
             <>
+              {/* Prize Pool */}
+              <div style={{ display:"flex", gap:10, marginBottom:16 }}>
+                <div style={{ flex:1, background:"linear-gradient(135deg,#c8a95122,#c8a95108)", border:"1px solid #c8a95155", borderRadius:12, padding:"14px 18px", textAlign:"center" }}>
+                  <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, textTransform:"uppercase", color:"#c8a951", marginBottom:4 }}>🥇 Winner</div>
+                  <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:36, fontWeight:900, color:"#c8a951" }}>$140</div>
+                </div>
+                <div style={{ flex:1, background:"linear-gradient(135deg,#9ca3af22,#9ca3af08)", border:"1px solid #9ca3af55", borderRadius:12, padding:"14px 18px", textAlign:"center" }}>
+                  <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, textTransform:"uppercase", color:"#9ca3af", marginBottom:4 }}>🥈 Runner-Up</div>
+                  <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:36, fontWeight:900, color:"#9ca3af" }}>$20</div>
+                </div>
+              </div>
+
               {leaderboard.length === 0 ? (
                 <div style={{ textAlign:"center", padding:"60px 20px", color:"#2a3550" }}>Add players in the Draw Results tab first.</div>
               ) : (
