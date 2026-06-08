@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { saveState, listenState } from "./firebase";
 
 // ── 2026 TEAMS (ESPN Rankings) ────────────────────────────────────────────────
 const WC2026_TEAMS = [
@@ -116,6 +117,22 @@ export default function App() {
   const [editingResultsFor, setEditingResultsFor] = useState(null);
   const dragTeam = useRef(null);
   const dragFrom = useRef(null);
+
+  // ── FIREBASE SYNC ──────────────────────────────────────────────────────────
+  // On mount: listen for real-time updates from Firebase
+  useEffect(() => {
+    listenState((data) => {
+      if (data.players)    setPlayers(data.players);
+      if (data.teamPoints) setTeamPoints(data.teamPoints);
+    });
+  }, []);
+
+  // Whenever players or teamPoints change, save to Firebase
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    saveState(players, teamPoints);
+  }, [players, teamPoints]);
 
   const assignedTeams = new Set(players.flatMap(p => p.teams));
 
