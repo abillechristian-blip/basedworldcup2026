@@ -515,14 +515,32 @@ export default function App() {
           {tab === "draw" && (
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))", gap:20 }}>
 
-              {/* Teams by pot — drag from here */}
-              <div style={{ background:"#0d1424", border:"1px solid #1a2540", borderRadius:14, overflow:"hidden" }}>
+              {/* Teams by pot — drag from here, also a drop target to unassign */}
+              <div
+                className="drop-zone"
+                style={{ background:"#0d1424", border:"1px solid #1a2540", borderRadius:14, overflow:"hidden" }}
+                onDragOver={onDragOver}
+                onDrop={e => {
+                  e.preventDefault();
+                  const tname = dragTeam.current;
+                  const fromIdx = dragFrom.current;
+                  if (!tname || fromIdx < 0) return;
+                  setPlayers(prev => {
+                    const next = prev.map(p => ({ ...p, teams: [...p.teams] }));
+                    next[fromIdx].teams = next[fromIdx].teams.filter(t => t !== tname);
+                    return next;
+                  });
+                  dragTeam.current = null; dragFrom.current = null;
+                }}
+                onDragEnter={e => e.currentTarget.classList.add("drag-over")}
+                onDragLeave={e => e.currentTarget.classList.remove("drag-over")}
+              >
                 <div style={{ padding:"14px 18px", borderBottom:"1px solid #1a2540", fontFamily:"'Barlow Condensed',sans-serif", fontSize:16, fontWeight:700, letterSpacing:2, textTransform:"uppercase", color:"#c8a951" }}>
                   🎲 Available Teams
                 </div>
                 <div style={{ padding:16 }}>
                   <div style={{ fontSize:11, color:"#4a5880", marginBottom:14, padding:"8px 12px", background:"#060a10", borderRadius:8, border:"1px solid #1a2540" }}>
-                    💡 As each team is drawn, drag their badge onto the player who drew them.
+                    💡 Drag a team onto a player to assign it. Drag it back here to unassign.
                   </div>
                   <div style={{ maxHeight:500, overflowY:"auto", paddingRight:4 }}>
                     {["pot1","pot2","pot3","pot4","pot5","pot6"].map(pot => (
