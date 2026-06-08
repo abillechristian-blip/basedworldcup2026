@@ -165,14 +165,14 @@ const SAMPLE_PLAYERS = [
 ];
 
 const TAB_DESCRIPTIONS = {
-  draw:        "See who drew which teams. Drag and drop team badges to swap teams between players.",
   leaderboard: "Live standings with automatic tiebreakers. Tap any team to edit their points.",
-  scoring:     "Every win = +3pts, draw = +1pt, champion bonus = +6pts. Tiebreakers also explained here.",
+  scoring:     "How points are calculated. Admin sync button at the bottom.",
   teams:       "All 48 teams across 6 pots, ranked by ESPN pre-tournament ratings.",
+  draw:        "See who drew which teams. Drag and drop team badges to swap teams between players.",
 };
 
 export default function App() {
-  const [tab, setTab]                 = useState("draw");
+  const [tab, setTab]                 = useState("leaderboard");
   const [activeDesc, setActiveDesc]   = useState("draw");
   const [draftName, setDraftName]     = useState("");
   const [draftTeams, setDraftTeams]   = useState([]);
@@ -536,10 +536,10 @@ export default function App() {
   `;
 
   const tabs = [
-    { id:"draw",        label:"🎲 Draw Results" },
     { id:"leaderboard", label:"🏆 Leaderboard"  },
     { id:"scoring",     label:"⚙️ Scoring"      },
-    { id:"teams",       label:"🌍 Teams"         },
+    { id:"teams",       label:"🌍 Nations"       },
+    { id:"draw",        label:"🎲 Draw Results" },
   ];
 
   return (
@@ -730,20 +730,6 @@ export default function App() {
           {/* ── LEADERBOARD TAB ── */}
           {tab === "leaderboard" && (
             <>
-              {/* Sync bar */}
-              <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16, padding:"12px 16px", background:"#0d1424", border:"1px solid #1a2540", borderRadius:10 }}>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:13, fontWeight:600, color:"#e8eaf0" }}>Live Results Sync</div>
-                  <div style={{ fontSize:11, color:"#4a5880", marginTop:2 }}>
-                    {syncMsg || "Pull latest match results from football-data.org"}
-                  </div>
-                </div>
-                <button onClick={syncResults} disabled={syncing}
-                  style={{ background: syncing ? "#1a2540" : "#c8a951", border:"none", borderRadius:8, color: syncing ? "#4a5880" : "#080c14", fontFamily:"'Barlow Condensed',sans-serif", fontSize:15, fontWeight:800, letterSpacing:1, padding:"10px 18px", cursor: syncing ? "not-allowed" : "pointer", whiteSpace:"nowrap" }}>
-                  {syncing ? "⏳ Syncing..." : "🔄 Sync Results"}
-                </button>
-              </div>
-
               {leaderboard.length === 0 ? (
                 <div style={{ textAlign:"center", padding:"60px 20px", color:"#2a3550" }}>Add players in the Draw Results tab first.</div>
               ) : (
@@ -866,7 +852,7 @@ export default function App() {
               </div>
 
               {/* Argentina 2022 example — kept as reference */}
-              <div style={{ background:"#0a0e1a", border:"1px solid #c8a95133", borderRadius:12, padding:"16px 18px" }}>
+              <div style={{ background:"#0a0e1a", border:"1px solid #c8a95133", borderRadius:12, padding:"16px 18px", marginBottom:24 }}>
                 <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:14, fontWeight:700, letterSpacing:2, color:"#c8a951", marginBottom:4, textTransform:"uppercase" }}>🏆 Example — Argentina (2022 World Cup Winners)</div>
                 <div style={{ fontSize:11, color:"#4a5880", marginBottom:12 }}>How 24 points are earned from start to finish</div>
                 {[
@@ -885,6 +871,28 @@ export default function App() {
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingTop:10, marginTop:4 }}>
                   <span style={{ fontSize:14, fontWeight:600, color:"#e8eaf0" }}>Total</span>
                   <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:24, fontWeight:900, color:"#c8a951" }}>24 pts</span>
+                </div>
+              </div>
+
+              {/* Admin Only — Sync Results */}
+              <div style={{ marginTop:32, borderTop:"1px solid #1a2540", paddingTop:24 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
+                  <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, textTransform:"uppercase", padding:"3px 10px", borderRadius:20, background:"#f8717122", border:"1px solid #f8717155", color:"#f87171" }}>
+                    🔒 Admin Only
+                  </div>
+                  <div style={{ fontSize:11, color:"#2a3550" }}>Do not touch unless you are Christian</div>
+                </div>
+                <div style={{ background:"#0a0608", border:"1px solid #f8717133", borderRadius:12, padding:"16px 18px", display:"flex", alignItems:"center", gap:14, flexWrap:"wrap" }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:13, fontWeight:600, color:"#e8eaf0" }}>Sync Live Results</div>
+                    <div style={{ fontSize:11, color:"#4a5880", marginTop:2 }}>
+                      {syncMsg || "Pull latest World Cup match results from football-data.org and update everyone's scores automatically."}
+                    </div>
+                  </div>
+                  <button onClick={syncResults} disabled={syncing}
+                    style={{ background: syncing ? "#1a2540" : "linear-gradient(135deg,#c8a951,#e8c96a)", border:"none", borderRadius:8, color: syncing ? "#4a5880" : "#080c14", fontFamily:"'Barlow Condensed',sans-serif", fontSize:15, fontWeight:800, letterSpacing:1, padding:"12px 24px", cursor: syncing ? "not-allowed" : "pointer", whiteSpace:"nowrap", boxShadow: syncing ? "none" : "0 4px 16px rgba(200,169,81,0.3)" }}>
+                    {syncing ? "⏳ Syncing..." : "🔄 Sync Results"}
+                  </button>
                 </div>
               </div>
             </>
