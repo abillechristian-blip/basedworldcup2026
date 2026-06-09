@@ -196,6 +196,23 @@ export default function App() {
 
   const [cardOrder, setCardOrder] = useState({});  // { pot: [teamName, ...] } shuffled display order
 
+  // Pot 1 special reveal state
+  const [pot1CardIndex, setPot1CardIndex] = useState(0);    // which card we're on (0-7)
+  const [pot1Flipped, setPot1Flipped]     = useState(false); // is current card flipped
+  const [pot1Flipping, setPot1Flipping]   = useState(false); // mid-animation
+
+  // ESPN Pot 1 order — #8 first, #1 last (builds tension)
+  const POT1_ESPN_ORDER = [
+    "Germany",      // #8
+    "Argentina",    // #7
+    "Netherlands",  // #6
+    "Portugal",     // #5
+    "Brazil",       // #4
+    "England",      // #3
+    "Spain",        // #2
+    "France",       // #1
+  ];
+
   function shuffleArr(arr) {
     const a = [...arr];
     for (let i = a.length - 1; i > 0; i--) {
@@ -226,6 +243,8 @@ export default function App() {
     setCardOrder(newCardOrder);
     setRevealedCards(new Set());
     setCurrentPot(0);
+    setPot1CardIndex(0);
+    setPot1Flipped(false);
     setDrawMode("reveal");
   };
 
@@ -264,8 +283,9 @@ export default function App() {
         return WC2026_TEAMS.filter(t => t.pot === pot);
       })()
     : [];
-  const currentPotAllRevealed = currentPotTeams.length > 0 &&
-    currentPotTeams.every(t => revealedCards.has(t.name));
+  const currentPotAllRevealed = POTS_ORDER[currentPot] === "pot1"
+    ? pot1CardIndex >= 7 && revealedCards.has(POT1_ESPN_ORDER[7])
+    : currentPotTeams.length > 0 && currentPotTeams.every(t => revealedCards.has(t.name));
   const [syncMsg, setSyncMsg]     = useState("");
 
   const syncResults = async () => {
@@ -649,7 +669,108 @@ export default function App() {
                     })}
                   </div>
 
-                  {/* Cards grid */}
+                  {/* POT 1 — Special big card one at a time reveal */}
+                  {POTS_ORDER[currentPot] === "pot1" ? (() => {
+                    const teamName = POT1_ESPN_ORDER[pot1CardIndex];
+                    const team = WC2026_TEAMS.find(t => t.name === teamName);
+                    const playerName = drawAssignments[teamName];
+                    const color = POT_META["pot1"].color;
+                    const espnRank = 8 - pot1CardIndex;
+                    const isLast = pot1CardIndex === 7;
+
+                    const handlePot1Tap = () => {
+                      if (pot1Flipping) return;
+                      if (!pot1Flipped) {
+                        // First tap — flip to reveal player
+                        setPot1Flipping(true);
+                        setTimeout(() => { setPot1Flipped(true); setPot1Flipping(false); }, 700);
+                      } else {
+                        // Second tap — advance to next card or finish
+                        if (!isLast) {
+                          setPot1Flipping(true);
+                          setTimeout(() => {
+                            setPot1CardIndex(i => i + 1);
+                            setPot1Flipped(false);
+                            setPot1Flipping(false);
+                            // Mark previous as revealed
+                            setRevealedCards(prev => new Set([...prev, teamName]));
+                          }, 400);
+                        } else {
+                          // Mark last card as revealed
+                          setRevealedCards(prev => new Set([...prev, teamName]));
+                        }
+                      }
+                    };
+
+                    return (
+                      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", marginBottom:24 }}>
+                        {/* Progress indicator */}
+                        <div style={{ display:"flex", gap:6, marginBottom:20 }}>
+                          {POT1_ESPN_ORDER.map((n, idx) => (
+                            <div key={n} style={{ width: idx === pot1CardIndex ? 24 : 8, height:8, borderRadius:4, transition:"all 0.3s",
+                              background: idx < pot1CardIndex ? color+"88" : idx === pot1CardIndex ? color : "#1a2540" }} />
+                          ))}
+                        </div>
+
+                        {/* ESPN rank label */}
+                        <div style={{ fontSize:11, fontWeight:700, letterSpacing:3, textTransform:"uppercase", color:color+"88", marginBottom:12 }}>
+                          ESPN #{espnRank} in the World
+                        </div>
+
+                        {/* Big card */}
+                        <div onClick={handlePot1Tap} style={{ cursor:"pointer", perspective:"1000px", width:"100%", maxWidth:320 }}>
+                          <div style={{
+                            position:"relative", height:220,
+                            transformStyle:"preserve-3d",
+                            transition:"transform 0.7s cubic-bezier(0.4,0,0.2,1)",
+                            transform: pot1Flipped ? "rotateY(180deg)" : pot1Flipping ? "rotateY(90deg)" : "rotateY(0deg)",
+                          }}>
+                            {/* Front — country */}
+                            <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden",
+                              background:`linear-gradient(135deg,${color}20,${color}08)`,
+                              border:`2px solid ${color}66`, borderRadius:20,
+                              display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:10,
+                              boxShadow:`0 0 40px ${color}22`
+                            }}>
+                              <div style={{ fontSize:72 }}>{team?.flag}</div>
+                              <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:28, fontWeight:900, color:"#e8eaf0", letterSpacing:1 }}>{teamName}</div>
+                              <div style={{ fontSize:11, fontWeight:700, color, letterSpacing:2, textTransform:"uppercase", padding:"3px 12px", borderRadius:20, background:color+"22", border:`1px solid ${color}44` }}>
+                                {pot1Flipped ? "Tap to continue →" : "Tap to reveal who drew this"}
+                              </div>
+                            </div>
+                            {/* Back — player reveal */}
+                            <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden",
+                              transform:"rotateY(180deg)",
+                              background:`linear-gradient(135deg,#0d1424,#1a2540)`,
+                              border:`2px solid ${color}`, borderRadius:20,
+                              display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12,
+                              boxShadow:`0 0 60px ${color}44`
+                            }}>
+                              <div style={{ fontSize:52 }}>{team?.flag}</div>
+                              <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:42, fontWeight:900, color, letterSpacing:2 }}>{playerName}</div>
+                              <div style={{ fontSize:14, color:"#e8eaf0", fontWeight:600 }}>draws {teamName}!</div>
+                              {!isLast && <div style={{ fontSize:11, color:"#4a5880", marginTop:4 }}>Tap to continue →</div>}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Already revealed list */}
+                        {pot1CardIndex > 0 && (
+                          <div style={{ marginTop:24, display:"flex", flexWrap:"wrap", gap:6, justifyContent:"center", maxWidth:500 }}>
+                            {POT1_ESPN_ORDER.slice(0, pot1CardIndex).map(n => {
+                              const t = WC2026_TEAMS.find(t => t.name === n);
+                              return (
+                                <div key={n} style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 12px", borderRadius:20, fontSize:12, fontWeight:600, background:color+"15", border:`1px solid ${color}33`, color:color }}>
+                                  {t?.flag} {n} → <strong>{drawAssignments[n]}</strong>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })() : (
+                  /* Regular pots — grid of cards */
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:12, marginBottom:20 }}>
                     {currentPotTeams.map(team => {
                       const isRevealed = revealedCards.has(team.name);
@@ -667,7 +788,6 @@ export default function App() {
                             transition:"transform 0.6s cubic-bezier(0.4,0,0.2,1)",
                             transform: isRevealed ? "rotateY(180deg)" : isFlipping ? "rotateY(90deg)" : "rotateY(0deg)",
                           }}>
-                            {/* Card Back — shows player name */}
                             <div style={{
                               position:"absolute", inset:0, backfaceVisibility:"hidden",
                               background:"linear-gradient(135deg,#0d1424,#1a2540)",
@@ -678,7 +798,6 @@ export default function App() {
                               <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:22, fontWeight:900, color:"#e8eaf0", letterSpacing:1 }}>{playerName}</div>
                               <div style={{ fontSize:10, color:"#2a3550" }}>Tap to reveal</div>
                             </div>
-                            {/* Card Front — reveals country */}
                             <div style={{
                               position:"absolute", inset:0, backfaceVisibility:"hidden",
                               transform:"rotateY(180deg)",
@@ -695,6 +814,7 @@ export default function App() {
                       );
                     })}
                   </div>
+                  )}
 
                   {/* Next pot / Finalize buttons */}
                   {currentPotAllRevealed && (
