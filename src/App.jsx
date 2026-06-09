@@ -648,18 +648,18 @@ export default function App() {
                             transition:"transform 0.6s cubic-bezier(0.4,0,0.2,1)",
                             transform: isRevealed ? "rotateY(180deg)" : isFlipping ? "rotateY(90deg)" : "rotateY(0deg)",
                           }}>
-                            {/* Card Back */}
+                            {/* Card Back — shows player name */}
                             <div style={{
                               position:"absolute", inset:0, backfaceVisibility:"hidden",
                               background:"linear-gradient(135deg,#0d1424,#1a2540)",
                               border:`1px solid ${potColor}44`, borderRadius:12,
                               display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8,
                             }}>
-                              <div style={{ fontSize:32 }}>🂠</div>
                               <div style={{ fontSize:11, fontWeight:700, color:potColor, letterSpacing:2, textTransform:"uppercase" }}>{POT_META[team.pot].badge}</div>
+                              <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:22, fontWeight:900, color:"#e8eaf0", letterSpacing:1 }}>{playerName}</div>
                               <div style={{ fontSize:10, color:"#2a3550" }}>Tap to reveal</div>
                             </div>
-                            {/* Card Front */}
+                            {/* Card Front — reveals country */}
                             <div style={{
                               position:"absolute", inset:0, backfaceVisibility:"hidden",
                               transform:"rotateY(180deg)",
