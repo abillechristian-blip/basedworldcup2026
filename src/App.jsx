@@ -194,22 +194,36 @@ export default function App() {
 
   const POTS_ORDER = ["pot6","pot5","pot4","pot3","pot2","pot1"]; // Revealed in reverse — builds tension
 
+  const [cardOrder, setCardOrder] = useState({});  // { pot: [teamName, ...] } shuffled display order
+
+  function shuffleArr(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
   const randomizeDraw = () => {
     const playerNames = players.map(p => p.name);
     const newAssignments = {};
-    // Shuffle each pot and assign one team per player
+    const newCardOrder = {};
+
     POTS_ORDER.forEach(pot => {
       const potTeams = [...WC2026_TEAMS.filter(t => t.pot === pot)];
-      // Fisher-Yates shuffle
-      for (let i = potTeams.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [potTeams[i], potTeams[j]] = [potTeams[j], potTeams[i]];
-      }
-      potTeams.forEach((team, idx) => {
-        newAssignments[team.name] = playerNames[idx];
+      // Shuffle for assignments
+      const shuffledForAssign = shuffleArr(potTeams);
+      const shuffledPlayers = shuffleArr([...playerNames]);
+      shuffledForAssign.forEach((team, idx) => {
+        newAssignments[team.name] = shuffledPlayers[idx];
       });
+      // Separately shuffle card display order so positions are also random
+      newCardOrder[pot] = shuffleArr(potTeams).map(t => t.name);
     });
+
     setDrawAssignments(newAssignments);
+    setCardOrder(newCardOrder);
     setRevealedCards(new Set());
     setCurrentPot(0);
     setDrawMode("reveal");
@@ -243,7 +257,12 @@ export default function App() {
   };
 
   const currentPotTeams = drawMode === "reveal"
-    ? WC2026_TEAMS.filter(t => t.pot === POTS_ORDER[currentPot])
+    ? (() => {
+        const pot = POTS_ORDER[currentPot];
+        const order = cardOrder[pot];
+        if (order) return order.map(name => WC2026_TEAMS.find(t => t.name === name)).filter(Boolean);
+        return WC2026_TEAMS.filter(t => t.pot === pot);
+      })()
     : [];
   const currentPotAllRevealed = currentPotTeams.length > 0 &&
     currentPotTeams.every(t => revealedCards.has(t.name));
