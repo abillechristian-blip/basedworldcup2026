@@ -196,22 +196,9 @@ export default function App() {
 
   const [cardOrder, setCardOrder] = useState({});  // { pot: [teamName, ...] } shuffled display order
 
-  // Pot 1 special reveal state
-  const [pot1CardIndex, setPot1CardIndex] = useState(0);    // which card we're on (0-7)
-  const [pot1Flipped, setPot1Flipped]     = useState(false); // is current card flipped
-  const [pot1Flipping, setPot1Flipping]   = useState(false); // mid-animation
+  const [locked, setLocked] = useState(false); // witness confirms before reveal starts
 
-  // ESPN Pot 1 order — #8 first, #1 last (builds tension)
-  const POT1_ESPN_ORDER = [
-    "Germany",      // #8
-    "Argentina",    // #7
-    "Netherlands",  // #6
-    "Portugal",     // #5
-    "Brazil",       // #4
-    "England",      // #3
-    "Spain",        // #2
-    "France",       // #1
-  ];
+
 
   function shuffleArr(arr) {
     const a = [...arr];
@@ -243,8 +230,7 @@ export default function App() {
     setCardOrder(newCardOrder);
     setRevealedCards(new Set());
     setCurrentPot(0);
-    setPot1CardIndex(0);
-    setPot1Flipped(false);
+    setLocked(false);
     setDrawMode("reveal");
   };
 
@@ -256,7 +242,7 @@ export default function App() {
   };
 
   const flipCard = (teamName) => {
-    if (flippingCard || revealedCards.has(teamName)) return;
+    if (!locked || flippingCard || revealedCards.has(teamName)) return;
     setFlippingCard(teamName);
     setTimeout(() => {
       setRevealedCards(prev => new Set([...prev, teamName]));
@@ -283,9 +269,8 @@ export default function App() {
         return WC2026_TEAMS.filter(t => t.pot === pot);
       })()
     : [];
-  const currentPotAllRevealed = POTS_ORDER[currentPot] === "pot1"
-    ? pot1CardIndex >= 7 && revealedCards.has(POT1_ESPN_ORDER[7])
-    : currentPotTeams.length > 0 && currentPotTeams.every(t => revealedCards.has(t.name));
+  const currentPotAllRevealed = currentPotTeams.length > 0 &&
+    currentPotTeams.every(t => revealedCards.has(t.name));
   const [syncMsg, setSyncMsg]     = useState("");
 
   const syncResults = async () => {
@@ -617,231 +602,147 @@ export default function App() {
           {tab === "draw" && (
             <div>
 
-              {/* SETUP MODE */}
+              {/* SETUP */}
               {drawMode === "setup" && (
-                <div style={{ maxWidth:500, margin:"0 auto", textAlign:"center", padding:"20px 0" }}>
-                  <div style={{ fontSize:60, marginBottom:16 }}>🎱</div>
-                  <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:28, fontWeight:900, color:"#e8eaf0", marginBottom:8, letterSpacing:2 }}>DRAW NIGHT</div>
-                  <div style={{ fontSize:13, color:"#4a5880", marginBottom:32, lineHeight:1.7 }}>
-                    Have your witness present. Hit Randomize to shuffle all 48 teams across 8 players. Teams are hidden until you flip each card pot by pot.
+                <div style={{ textAlign:"center", maxWidth:480, margin:"0 auto", paddingTop:20 }}>
+                  <div style={{ fontSize:64, marginBottom:16 }}>🎱</div>
+                  <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:30, fontWeight:900, letterSpacing:3, color:"#e8eaf0", marginBottom:10 }}>DRAW NIGHT</div>
+                  <div style={{ fontSize:13, color:"#4a5880", lineHeight:1.8, marginBottom:16 }}>
+                    48 teams · 8 players · 6 pots. Hit Begin Draw to randomize and start the reveal from Pot 6.
+                  </div>
+                  <div style={{ background:"#0d1424", border:"1px solid #1a2540", borderRadius:12, padding:"12px 16px", marginBottom:28, fontSize:12, color:"#6b7a99" }}>
+                    <strong style={{ color:"#c8a951" }}>Players: </strong>{players.map(p => p.name).join(" · ")}
                   </div>
                   <button onClick={randomizeDraw}
-                    style={{ background:"linear-gradient(135deg,#c8a951,#e8c96a)", border:"none", borderRadius:12, color:"#080c14", fontFamily:"'Barlow Condensed',sans-serif", fontSize:24, fontWeight:900, letterSpacing:3, padding:"18px 48px", cursor:"pointer", boxShadow:"0 8px 32px rgba(200,169,81,0.4)", width:"100%" }}>
-                    🎲 RANDOMIZE DRAW
+                    style={{ background:"linear-gradient(135deg,#c8a951,#e8c96a)", border:"none", borderRadius:12, color:"#080c14", fontFamily:"'Barlow Condensed',sans-serif", fontSize:22, fontWeight:900, letterSpacing:3, padding:"16px 48px", cursor:"pointer", boxShadow:"0 8px 32px rgba(200,169,81,0.4)", width:"100%" }}>
+                    🎲 BEGIN DRAW
                   </button>
-                  <div style={{ fontSize:11, color:"#2a3550", marginTop:12 }}>Your witness should be watching when you tap this</div>
                 </div>
               )}
 
-              {/* REVEAL MODE */}
-              {drawMode === "reveal" && (
-                <div>
-                  {/* Header */}
-                  <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20, padding:"14px 18px", background:"#0d1424", border:"1px solid #1a2540", borderRadius:12 }}>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:18, fontWeight:800, letterSpacing:2, color:"#c8a951" }}>
-                        {POT_META[POTS_ORDER[currentPot]]?.label} — Tap to Reveal
-                      </div>
-                      <div style={{ fontSize:11, color:"#4a5880", marginTop:2 }}>
-                        Pot {currentPot + 1} of 6 · {currentPotTeams.filter(t => revealedCards.has(t.name)).length}/{currentPotTeams.length} revealed
-                      </div>
+              {/* REVEAL */}
+              {drawMode === "reveal" && (() => {
+                const pot = POTS_ORDER[currentPot];
+                const potColor = POT_META[pot].color;
+                const allRevealed = currentPotTeams.every(t => revealedCards.has(t.name));
+                const isLastPot = currentPot === POTS_ORDER.length - 1;
+
+                const reshufflePot = () => {
+                  // Re-randomize just this pot's assignments
+                  const potTeams = WC2026_TEAMS.filter(t => t.pot === pot);
+                  const playerNames = players.map(p => p.name);
+                  const shuffledPlayers = [...playerNames].sort(() => Math.random() - 0.5);
+                  const newAssignments = { ...drawAssignments };
+                  const newOrder = [...potTeams].sort(() => Math.random() - 0.5);
+                  newOrder.forEach((team, i) => { newAssignments[team.name] = shuffledPlayers[i]; });
+                  setDrawAssignments(newAssignments);
+                  // Reset revealed for this pot
+                  const newRevealed = new Set(revealedCards);
+                  potTeams.forEach(t => newRevealed.delete(t.name));
+                  setRevealedCards(newRevealed);
+                  // Reshuffle card order
+                  setCardOrder(prev => ({ ...prev, [pot]: [...potTeams].sort(() => Math.random() - 0.5).map(t => t.name) }));
+                  if (pot === "pot1") { setPot1CardIndex(0); setPot1Flipped(false); }
+                };
+
+                return (
+                  <div>
+                    {/* Pot nav pills */}
+                    <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
+                      {POTS_ORDER.map((p, idx) => {
+                        const teams = WC2026_TEAMS.filter(t => t.pot === p);
+                        const done = teams.every(t => revealedCards.has(t.name));
+                        const active = idx === currentPot;
+                        return (
+                          <button key={p} onClick={() => setCurrentPot(idx)}
+                            style={{ padding:"5px 12px", borderRadius:20, fontSize:11, fontWeight:700, cursor:"pointer",
+                              background: done ? POT_META[p].color+"22" : active ? "#1a2540" : "#060a10",
+                              border:`1px solid ${active ? POT_META[p].color : done ? POT_META[p].color+"44" : "#1a2540"}`,
+                              color: done ? POT_META[p].color : active ? POT_META[p].color : "#2a3550" }}>
+                            {done ? "✓ " : ""}{POT_META[p].label}
+                          </button>
+                        );
+                      })}
                     </div>
-                    <button onClick={resetDraw}
-                      style={{ background:"none", border:"1px solid #2a3550", borderRadius:8, color:"#4a5880", fontFamily:"'Mulish',sans-serif", fontSize:11, fontWeight:600, padding:"6px 12px", cursor:"pointer" }}>
-                      ↺ Re-randomize
-                    </button>
-                  </div>
 
-                  {/* Pot progress pills */}
-                  <div style={{ display:"flex", gap:6, marginBottom:20, flexWrap:"wrap" }}>
-                    {POTS_ORDER.map((pot, idx) => {
-                      const potTeams = WC2026_TEAMS.filter(t => t.pot === pot);
-                      const allDone = potTeams.every(t => revealedCards.has(t.name));
-                      const isCurrent = idx === currentPot;
-                      return (
-                        <div key={pot} style={{ padding:"4px 12px", borderRadius:20, fontSize:11, fontWeight:700,
-                          background: allDone ? POT_META[pot].color+"22" : isCurrent ? "#1a2540" : "#060a10",
-                          border: `1px solid ${isCurrent ? POT_META[pot].color : allDone ? POT_META[pot].color+"44" : "#1a2540"}`,
-                          color: allDone ? POT_META[pot].color : isCurrent ? POT_META[pot].color : "#2a3550" }}>
-                          {allDone ? "✓ " : ""}{POT_META[pot].label}
-                        </div>
-                      );
-                    })}
-                  </div>
+                    {/* Pot header with re-randomize */}
+                    <div style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 16px", background:"#0d1424", border:`1px solid ${potColor}44`, borderRadius:10, marginBottom:16 }}>
+                      <div style={{ flex:1, fontFamily:"'Barlow Condensed',sans-serif", fontSize:18, fontWeight:800, color:potColor, letterSpacing:1 }}>
+                        {POT_META[pot].label} — Tap cards to reveal
+                      </div>
+                      <div style={{ fontSize:11, color:"#4a5880" }}>{currentPotTeams.filter(t => revealedCards.has(t.name)).length}/{currentPotTeams.length}</div>
+                      <button onClick={reshufflePot}
+                        style={{ background:"none", border:"1px solid #2a3550", borderRadius:8, color:"#4a5880", fontFamily:"'Mulish',sans-serif", fontSize:11, fontWeight:600, padding:"5px 12px", cursor:"pointer", whiteSpace:"nowrap" }}>
+                        ↺ Re-randomize
+                      </button>
+                    </div>
 
-                  {/* POT 1 — Special big card one at a time reveal */}
-                  {POTS_ORDER[currentPot] === "pot1" ? (() => {
-                    const teamName = POT1_ESPN_ORDER[pot1CardIndex];
-                    const team = WC2026_TEAMS.find(t => t.name === teamName);
-                    const playerName = drawAssignments[teamName];
-                    const color = POT_META["pot1"].color;
-                    const espnRank = 8 - pot1CardIndex;
-                    const isLast = pot1CardIndex === 7;
-
-                    const handlePot1Tap = () => {
-                      if (pot1Flipping) return;
-                      if (!pot1Flipped) {
-                        // First tap — flip to reveal player
-                        setPot1Flipping(true);
-                        setTimeout(() => { setPot1Flipped(true); setPot1Flipping(false); }, 700);
-                      } else {
-                        // Second tap — advance to next card or finish
-                        if (!isLast) {
-                          setPot1Flipping(true);
-                          setTimeout(() => {
-                            setPot1CardIndex(i => i + 1);
-                            setPot1Flipped(false);
-                            setPot1Flipping(false);
-                            // Mark previous as revealed
-                            setRevealedCards(prev => new Set([...prev, teamName]));
-                          }, 400);
-                        } else {
-                          // Mark last card as revealed
-                          setRevealedCards(prev => new Set([...prev, teamName]));
-                        }
-                      }
-                    };
-
-                    return (
-                      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", marginBottom:24 }}>
-                        {/* Progress indicator */}
-                        <div style={{ display:"flex", gap:6, marginBottom:20 }}>
-                          {POT1_ESPN_ORDER.map((n, idx) => (
-                            <div key={n} style={{ width: idx === pot1CardIndex ? 24 : 8, height:8, borderRadius:4, transition:"all 0.3s",
-                              background: idx < pot1CardIndex ? color+"88" : idx === pot1CardIndex ? color : "#1a2540" }} />
-                          ))}
-                        </div>
-
-                        {/* ESPN rank label */}
-                        <div style={{ fontSize:11, fontWeight:700, letterSpacing:3, textTransform:"uppercase", color:color+"88", marginBottom:12 }}>
-                          ESPN #{espnRank} in the World
-                        </div>
-
-                        {/* Big card */}
-                        <div onClick={handlePot1Tap} style={{ cursor:"pointer", perspective:"1000px", width:"100%", maxWidth:320 }}>
-                          <div style={{
-                            position:"relative", height:220,
-                            transformStyle:"preserve-3d",
-                            transition:"transform 0.7s cubic-bezier(0.4,0,0.2,1)",
-                            transform: pot1Flipped ? "rotateY(180deg)" : pot1Flipping ? "rotateY(90deg)" : "rotateY(0deg)",
-                          }}>
-                            {/* Front — country */}
-                            <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden",
-                              background:`linear-gradient(135deg,${color}20,${color}08)`,
-                              border:`2px solid ${color}66`, borderRadius:20,
-                              display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:10,
-                              boxShadow:`0 0 40px ${color}22`
-                            }}>
-                              <div style={{ fontSize:72 }}>{team?.flag}</div>
-                              <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:28, fontWeight:900, color:"#e8eaf0", letterSpacing:1 }}>{teamName}</div>
-                              <div style={{ fontSize:11, fontWeight:700, color, letterSpacing:2, textTransform:"uppercase", padding:"3px 12px", borderRadius:20, background:color+"22", border:`1px solid ${color}44` }}>
-                                {pot1Flipped ? "Tap to continue →" : "Tap to reveal who drew this"}
+                    {/* Cards grid — all pots same treatment */}
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:20 }}>
+                      {currentPotTeams.map(team => {
+                        const isRevealed = revealedCards.has(team.name);
+                        const isFlipping = flippingCard === team.name;
+                        const playerName = drawAssignments[team.name];
+                        return (
+                          <div key={team.name} onClick={() => flipCard(team.name)}
+                            style={{ cursor: isRevealed ? "default" : "pointer" }}>
+                            <div style={{ position:"relative", height:115, transformStyle:"preserve-3d",
+                              transition: isFlipping ? "transform 0.25s ease-in" : isRevealed ? "transform 0.25s ease-out" : "none",
+                              transform: isRevealed ? "rotateY(180deg)" : "rotateY(0deg)" }}>
+                              {/* Face — player name */}
+                              <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden",
+                                background:"linear-gradient(135deg,#0d1424,#1a2540)", border:`1px solid ${potColor}44`, borderRadius:12,
+                                display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:6 }}>
+                                <div style={{ fontSize:10, fontWeight:700, color:potColor, letterSpacing:2 }}>{POT_META[team.pot].badge}</div>
+                                <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:20, fontWeight:900, color:"#e8eaf0" }}>{playerName}</div>
+                                <div style={{ fontSize:9, color:"#2a3550" }}>Tap to reveal</div>
+                              </div>
+                              {/* Back — country */}
+                              <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden",
+                                transform:"rotateY(180deg)",
+                                background:`linear-gradient(135deg,${potColor}18,${potColor}05)`, border:`1px solid ${potColor}66`, borderRadius:12,
+                                display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:5 }}>
+                                <div style={{ fontSize:30 }}>{team.flag}</div>
+                                <div style={{ fontSize:12, fontWeight:700, color:"#e8eaf0", textAlign:"center" }}>{team.name}</div>
+                                <div style={{ fontSize:10, fontWeight:600, color:potColor }}>{playerName}</div>
                               </div>
                             </div>
-                            {/* Back — player reveal */}
-                            <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden",
-                              transform:"rotateY(180deg)",
-                              background:`linear-gradient(135deg,#0d1424,#1a2540)`,
-                              border:`2px solid ${color}`, borderRadius:20,
-                              display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12,
-                              boxShadow:`0 0 60px ${color}44`
-                            }}>
-                              <div style={{ fontSize:52 }}>{team?.flag}</div>
-                              <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:42, fontWeight:900, color, letterSpacing:2 }}>{playerName}</div>
-                              <div style={{ fontSize:14, color:"#e8eaf0", fontWeight:600 }}>draws {teamName}!</div>
-                              {!isLast && <div style={{ fontSize:11, color:"#4a5880", marginTop:4 }}>Tap to continue →</div>}
-                            </div>
                           </div>
-                        </div>
-
-                        {/* Already revealed list */}
-                        {pot1CardIndex > 0 && (
-                          <div style={{ marginTop:24, display:"flex", flexWrap:"wrap", gap:6, justifyContent:"center", maxWidth:500 }}>
-                            {POT1_ESPN_ORDER.slice(0, pot1CardIndex).map(n => {
-                              const t = WC2026_TEAMS.find(t => t.name === n);
-                              return (
-                                <div key={n} style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 12px", borderRadius:20, fontSize:12, fontWeight:600, background:color+"15", border:`1px solid ${color}33`, color:color }}>
-                                  {t?.flag} {n} → <strong>{drawAssignments[n]}</strong>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })() : (
-                  /* Regular pots — grid of cards */
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:12, marginBottom:20 }}>
-                    {currentPotTeams.map(team => {
-                      const isRevealed = revealedCards.has(team.name);
-                      const isFlipping = flippingCard === team.name;
-                      const playerName = drawAssignments[team.name];
-                      const potColor = POT_META[team.pot].color;
-
-                      return (
-                        <div key={team.name}
-                          onClick={() => flipCard(team.name)}
-                          style={{ cursor: isRevealed ? "default" : "pointer", perspective:"1000px" }}>
-                          <div style={{
-                            position:"relative", height:120,
-                            transformStyle:"preserve-3d",
-                            transition:"transform 0.6s cubic-bezier(0.4,0,0.2,1)",
-                            transform: isRevealed ? "rotateY(180deg)" : isFlipping ? "rotateY(90deg)" : "rotateY(0deg)",
-                          }}>
-                            <div style={{
-                              position:"absolute", inset:0, backfaceVisibility:"hidden",
-                              background:"linear-gradient(135deg,#0d1424,#1a2540)",
-                              border:`1px solid ${potColor}44`, borderRadius:12,
-                              display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8,
-                            }}>
-                              <div style={{ fontSize:11, fontWeight:700, color:potColor, letterSpacing:2, textTransform:"uppercase" }}>{POT_META[team.pot].badge}</div>
-                              <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:22, fontWeight:900, color:"#e8eaf0", letterSpacing:1 }}>{playerName}</div>
-                              <div style={{ fontSize:10, color:"#2a3550" }}>Tap to reveal</div>
-                            </div>
-                            <div style={{
-                              position:"absolute", inset:0, backfaceVisibility:"hidden",
-                              transform:"rotateY(180deg)",
-                              background:`linear-gradient(135deg,${potColor}15,${potColor}08)`,
-                              border:`1px solid ${potColor}66`, borderRadius:12,
-                              display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:6,
-                            }}>
-                              <div style={{ fontSize:36 }}>{team.flag}</div>
-                              <div style={{ fontSize:13, fontWeight:700, color:"#e8eaf0", textAlign:"center" }}>{team.name}</div>
-                              <div style={{ fontSize:11, fontWeight:600, color:potColor, padding:"2px 10px", borderRadius:20, background:potColor+"22" }}>{playerName}</div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  )}
-
-                  {/* Next pot / Finalize buttons */}
-                  {currentPotAllRevealed && (
-                    <div style={{ textAlign:"center" }}>
-                      {currentPot < 5 ? (
-                        <button onClick={() => setCurrentPot(p => p + 1)}
-                          style={{ background:"linear-gradient(135deg,#c8a951,#e8c96a)", border:"none", borderRadius:12, color:"#080c14", fontFamily:"'Barlow Condensed',sans-serif", fontSize:20, fontWeight:900, letterSpacing:2, padding:"14px 40px", cursor:"pointer", boxShadow:"0 4px 20px rgba(200,169,81,0.3)" }}>
-                          NEXT → {POT_META[POTS_ORDER[currentPot+1]]?.label}
-                        </button>
-                      ) : (
-                        <button onClick={finalizeDraw}
-                          style={{ background:"linear-gradient(135deg,#c8a951,#e8c96a)", border:"none", borderRadius:12, color:"#080c14", fontFamily:"'Barlow Condensed',sans-serif", fontSize:20, fontWeight:900, letterSpacing:2, padding:"14px 40px", cursor:"pointer", boxShadow:"0 4px 20px rgba(200,169,81,0.3)" }}>
-                          🏆 LOCK IN THE DRAW
-                        </button>
-                      )}
+                        );
+                      })}
                     </div>
-                  )}
-                </div>
-              )}
 
-              {/* DONE MODE */}
+                    {/* Next pot button */}
+                    {allRevealed && !isLastPot && (
+                      <div style={{ textAlign:"center" }}>
+                        <button onClick={() => setCurrentPot(p => p + 1)}
+                          style={{ background:"linear-gradient(135deg,#c8a951,#e8c96a)", border:"none", borderRadius:12, color:"#080c14", fontFamily:"'Barlow Condensed',sans-serif", fontSize:18, fontWeight:900, letterSpacing:2, padding:"12px 36px", cursor:"pointer", boxShadow:"0 4px 20px rgba(200,169,81,0.3)" }}>
+                          NEXT → {POT_META[POTS_ORDER[currentPot + 1]]?.label}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Lock In — only after ALL pots done */}
+                    {isLastPot && allRevealed && (
+                      <div style={{ textAlign:"center" }}>
+                        <button onClick={finalizeDraw}
+                          style={{ background:"linear-gradient(135deg,#c8a951,#e8c96a)", border:"none", borderRadius:12, color:"#080c14", fontFamily:"'Barlow Condensed',sans-serif", fontSize:20, fontWeight:900, letterSpacing:2, padding:"14px 40px", cursor:"pointer", boxShadow:"0 6px 24px rgba(200,169,81,0.4)" }}>
+                          🔒 LOCK IN THE DRAW
+                        </button>
+                        <div style={{ fontSize:11, color:"#4a5880", marginTop:8 }}>This saves everyone's teams and can't be undone</div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* DONE */}
               {drawMode === "done" && (
                 <div>
                   <div style={{ textAlign:"center", marginBottom:24 }}>
                     <div style={{ fontSize:48, marginBottom:8 }}>🏆</div>
                     <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:28, fontWeight:900, color:"#c8a951", letterSpacing:2 }}>DRAW COMPLETE</div>
-                    <div style={{ fontSize:12, color:"#4a5880", marginTop:4 }}>All teams assigned · Saved to Firebase · Everyone can see their draw</div>
+                    <div style={{ fontSize:12, color:"#4a5880", marginTop:4 }}>Saved to Firebase · Everyone can see their teams</div>
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                     {players.map((p, i) => (
@@ -852,6 +753,7 @@ export default function App() {
                             const t = getTeam(tname);
                             return t ? (
                               <span key={tname} style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:20, fontSize:12, fontWeight:500, background:POT_META[t.pot].color+"15", border:`1px solid ${POT_META[t.pot].color}44`, color:POT_META[t.pot].color }}>
+                                <span style={{ fontSize:9 }}>{POT_META[t.pot].badge}</span>
                                 {t.flag} {tname}
                               </span>
                             ) : null;
