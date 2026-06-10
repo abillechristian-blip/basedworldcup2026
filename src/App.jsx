@@ -537,7 +537,8 @@ export default function App() {
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=Mulish:wght@400;500;600;700&display=swap');
     *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
-    body { font-family:'Mulish',sans-serif; background:#080c14; color:#e8eaf0; min-height:100vh; }
+    body { font-family:'Mulish',sans-serif; background:#080c14; color:#e8eaf0; min-height:100vh; cursor:default; }
+    div, span, p { cursor:default; }
     @keyframes slideIn  { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:translateX(0)} }
     @keyframes fadeDown { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
     @keyframes descIn   { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
