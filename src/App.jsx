@@ -803,7 +803,7 @@ export default function App() {
                           style={{ background:"linear-gradient(135deg,#c8a951,#e8c96a)", border:"none", borderRadius:12, color:"#080c14", fontFamily:"'Barlow Condensed',sans-serif", fontSize:20, fontWeight:900, letterSpacing:2, padding:"14px 40px", cursor:"pointer", boxShadow:"0 6px 24px rgba(200,169,81,0.4)" }}>
                           🔒 LOCK IN THE DRAW
                         </button>
-                        <div style={{ fontSize:11, color:"#4a5880", marginTop:8 }}>This saves everyone's teams and can't be undone</div>
+
                       </div>
                     )}
                   </div>
