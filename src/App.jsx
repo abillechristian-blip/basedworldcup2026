@@ -195,6 +195,7 @@ export default function App() {
   const POTS_ORDER = ["pot6","pot5","pot4","pot3","pot2","pot1"]; // Revealed in reverse — builds tension
 
   const [cardOrder, setCardOrder] = useState({});  // { pot: [teamName, ...] } shuffled display order
+  const [pot1CardIndex, setPot1CardIndex] = useState(0);
 
   const [locked, setLocked] = useState(false); // witness confirms before reveal starts
 
@@ -231,6 +232,7 @@ export default function App() {
     setRevealedCards(new Set());
     setCurrentPot(0);
     setLocked(false);
+    setPot1CardIndex(0);
     setDrawMode("reveal");
   };
 
@@ -238,16 +240,17 @@ export default function App() {
     setDrawAssignments({});
     setRevealedCards(new Set());
     setCurrentPot(0);
+    setPot1CardIndex(0);
     setDrawMode("setup");
   };
 
   const flipCard = (teamName) => {
-    if (!locked || flippingCard || revealedCards.has(teamName)) return;
+    if (flippingCard || revealedCards.has(teamName)) return;
     setFlippingCard(teamName);
     setTimeout(() => {
       setRevealedCards(prev => new Set([...prev, teamName]));
       setFlippingCard(null);
-    }, 600);
+    }, 250);
   };
 
   const finalizeDraw = () => {
@@ -677,7 +680,78 @@ export default function App() {
                       </button>
                     </div>
 
-                    {/* Cards grid — all pots same treatment */}
+                    {/* Pot 1 — big single card reveal one by one */}
+                    {pot === "pot1" ? (() => {
+                      const [pot1Idx, setPot1Idx] = [pot1CardIndex, setPot1CardIndex];
+                      const teamName = currentPotTeams[pot1Idx]?.name;
+                      const team = currentPotTeams[pot1Idx];
+                      const playerName = drawAssignments[teamName];
+                      const isFlipping = flippingCard === teamName;
+                      const isRevealed = revealedCards.has(teamName);
+                      const isLast = pot1Idx === 7;
+
+                      return (
+                        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", marginBottom:20 }}>
+                          {/* Progress dots */}
+                          <div style={{ display:"flex", gap:6, marginBottom:14 }}>
+                            {currentPotTeams.map((t, idx) => (
+                              <div key={t.name} style={{ width: idx === pot1Idx ? 24 : 8, height:8, borderRadius:4, transition:"width 0.3s",
+                                background: revealedCards.has(t.name) ? potColor+"88" : idx === pot1Idx ? potColor : "#1a2540" }} />
+                            ))}
+                          </div>
+
+                          {/* Big card */}
+                          <div style={{ width:"100%", maxWidth:300, marginBottom:16 }}
+                            onClick={() => {
+                              if (isRevealed) {
+                                // Advance to next
+                                if (!isLast) setPot1CardIndex(i => i + 1);
+                              } else {
+                                flipCard(teamName);
+                              }
+                            }}
+                            style={{ cursor:"pointer", width:"100%", maxWidth:300, marginBottom:16 }}>
+                            <div style={{ position:"relative", height:200, transformStyle:"preserve-3d",
+                              transition: isFlipping ? "transform 0.25s ease-in" : isRevealed ? "transform 0.25s ease-out" : "none",
+                              transform: isRevealed ? "rotateY(180deg)" : "rotateY(0deg)" }}>
+                              {/* Face — player name */}
+                              <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden",
+                                background:"linear-gradient(135deg,#0d1424,#1a2540)", border:`2px solid ${potColor}55`, borderRadius:18,
+                                display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:10 }}>
+                                <div style={{ fontSize:10, fontWeight:700, color:potColor, letterSpacing:2, padding:"2px 10px", borderRadius:20, background:potColor+"22" }}>P1</div>
+                                <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:36, fontWeight:900, color:"#e8eaf0", letterSpacing:1 }}>{playerName}</div>
+                                <div style={{ fontSize:11, color:"#2a3550" }}>Tap to reveal nation</div>
+                              </div>
+                              {/* Back — country */}
+                              <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden",
+                                transform:"rotateY(180deg)",
+                                background:`linear-gradient(135deg,${potColor}20,${potColor}08)`, border:`2px solid ${potColor}`, borderRadius:18,
+                                display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:10,
+                                boxShadow:`0 0 50px ${potColor}33` }}>
+                                <div style={{ fontSize:64 }}>{team?.flag}</div>
+                                <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:26, fontWeight:900, color:"#e8eaf0" }}>{teamName}</div>
+                                <div style={{ fontSize:12, fontWeight:600, color:potColor, padding:"3px 12px", borderRadius:20, background:potColor+"22" }}>
+                                  {playerName} draws {teamName}!
+                                </div>
+                                {!isLast && <div style={{ fontSize:10, color:"#4a5880" }}>Tap to continue →</div>}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Already revealed list */}
+                          {pot1Idx > 0 && (
+                            <div style={{ display:"flex", flexWrap:"wrap", gap:6, justifyContent:"center", maxWidth:500 }}>
+                              {currentPotTeams.slice(0, pot1Idx).filter(t => revealedCards.has(t.name)).map(t => (
+                                <div key={t.name} style={{ display:"flex", alignItems:"center", gap:5, padding:"4px 12px", borderRadius:20, fontSize:12, fontWeight:600, background:potColor+"15", border:`1px solid ${potColor}33`, color:potColor }}>
+                                  {t.flag} {t.name} → <strong>{drawAssignments[t.name]}</strong>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })() : (
+                    /* Pots 2-6 — 4x2 grid */
                     <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:20 }}>
                       {currentPotTeams.map(team => {
                         const isRevealed = revealedCards.has(team.name);
@@ -689,7 +763,6 @@ export default function App() {
                             <div style={{ position:"relative", height:115, transformStyle:"preserve-3d",
                               transition: isFlipping ? "transform 0.25s ease-in" : isRevealed ? "transform 0.25s ease-out" : "none",
                               transform: isRevealed ? "rotateY(180deg)" : "rotateY(0deg)" }}>
-                              {/* Face — player name */}
                               <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden",
                                 background:"linear-gradient(135deg,#0d1424,#1a2540)", border:`1px solid ${potColor}44`, borderRadius:12,
                                 display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:6 }}>
@@ -697,7 +770,6 @@ export default function App() {
                                 <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:20, fontWeight:900, color:"#e8eaf0" }}>{playerName}</div>
                                 <div style={{ fontSize:9, color:"#2a3550" }}>Tap to reveal</div>
                               </div>
-                              {/* Back — country */}
                               <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden",
                                 transform:"rotateY(180deg)",
                                 background:`linear-gradient(135deg,${potColor}18,${potColor}05)`, border:`1px solid ${potColor}66`, borderRadius:12,
@@ -711,6 +783,7 @@ export default function App() {
                         );
                       })}
                     </div>
+                    )}
 
                     {/* Next pot button */}
                     {allRevealed && !isLastPot && (
