@@ -34,37 +34,86 @@ async function fetchWCResults() {
   }
 }
 
+// Map API round names to our stage names
+const ROUND_STAGE_MAP = {
+  "GROUP_STAGE":           "Groups",
+  "ROUND_OF_16":           "R16",
+  "QUARTER_FINALS":        "QF",
+  "SEMI_FINALS":           "SF",
+  "THIRD_PLACE":           "SF",
+  "FINAL":                 "Final",
+};
+
+// KO points per stage (cumulative — same as app scoring)
+const KO_PTS_MAP = { Groups:0, R16:3, QF:6, SF:9, Final:12, Winner:15 };
+
+// Stage rank for comparison
+const STAGE_RANK = { Groups:0, R16:1, QF:2, SF:3, Final:4, Winner:5 };
+
 function processMatches(matches, currentTeamPoints) {
-  const teamStats = {};
+  const teamStats   = {}; // W/D/L per team
+  const teamStages  = {}; // furthest stage reached per team
+  const champSet    = new Set(); // teams that won the final
 
   matches.forEach(match => {
-    const homeRaw = match.homeTeam?.name;
-    const awayRaw = match.awayTeam?.name;
-    const home = TEAM_NAME_MAP[homeRaw] || homeRaw;
-    const away = TEAM_NAME_MAP[awayRaw] || awayRaw;
-    const hScore = match.score?.fullTime?.home;
-    const aScore = match.score?.fullTime?.away;
+    const homeRaw  = match.homeTeam?.name;
+    const awayRaw  = match.awayTeam?.name;
+    const home     = TEAM_NAME_MAP[homeRaw] || homeRaw;
+    const away     = TEAM_NAME_MAP[awayRaw] || awayRaw;
+    const hScore   = match.score?.fullTime?.home;
+    const aScore   = match.score?.fullTime?.away;
+    const round    = match.stage || match.matchday;
+    const stage    = ROUND_STAGE_MAP[round] || "Groups";
+
     if (hScore === null || hScore === undefined) return;
 
     [home, away].forEach(t => {
       if (!teamStats[t]) teamStats[t] = { w:0, d:0, l:0 };
+      // Track furthest stage reached for both teams
+      if (!teamStages[t] || STAGE_RANK[stage] > STAGE_RANK[teamStages[t] || "Groups"]) {
+        teamStages[t] = stage;
+      }
     });
 
     if (hScore > aScore) {
       teamStats[home].w++; teamStats[away].l++;
+      if (stage === "Final") champSet.add(home);
     } else if (hScore < aScore) {
       teamStats[away].w++; teamStats[home].l++;
+      if (stage === "Final") champSet.add(away);
     } else {
-      teamStats[home].d++; teamStats[away].d++;
+      // Penalties — winner determined by penalties score
+      const homePen = match.score?.penalties?.home;
+      const awayPen = match.score?.penalties?.away;
+      if (homePen !== null && homePen !== undefined) {
+        if (homePen > awayPen) { teamStats[home].w++; teamStats[away].l++; }
+        else { teamStats[away].w++; teamStats[home].l++; }
+      } else {
+        teamStats[home].d++; teamStats[away].d++;
+      }
     }
   });
 
   // Build updated teamPoints
   const updated = { ...currentTeamPoints };
+
   Object.entries(teamStats).forEach(([team, record]) => {
-    const pts = record.w * 3 + record.d;
-    const prev = updated[team] || { pts:0, stage:"Groups", champ:false, w:0, d:0, l:0 };
-    updated[team] = { ...prev, pts: pts + (prev.champ ? 6 : 0), w: record.w, d: record.d, l: record.l };
+    const groupPts = record.w * 3 + record.d;
+    const stage    = teamStages[team] || "Groups";
+    const isChamp  = champSet.has(team);
+    const finalStage = isChamp ? "Winner" : stage;
+    const koPts    = KO_PTS_MAP[finalStage] || 0;
+    const bonus    = isChamp ? 6 : 0;
+    const total    = groupPts + koPts + bonus;
+
+    updated[team] = {
+      pts:   total,
+      stage: finalStage,
+      champ: isChamp,
+      w:     record.w,
+      d:     record.d,
+      l:     record.l,
+    };
   });
 
   return updated;
@@ -293,8 +342,11 @@ export default function App() {
       return;
     }
     const updated = processMatches(matches, teamPoints);
+    // Count how many of our 48 teams were actually found in the results
+    const ourTeams = WC2026_TEAMS.map(t => t.name);
+    const updatedTeams = ourTeams.filter(name => updated[name]?.pts > 0 || updated[name]?.w > 0);
     setTeamPoints(updated);
-    setSyncMsg(`✅ Synced ${matches.length} matches`);
+    setSyncMsg(`✅ ${matches.length} matches · ${updatedTeams.length} teams updated`);
     setSyncing(false);
     setTimeout(() => setSyncMsg(""), 4000);
   };
