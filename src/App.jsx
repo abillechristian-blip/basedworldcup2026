@@ -10,15 +10,47 @@ const TEAM_NAME_MAP = {
   "Norway":"Norway","Belgium":"Belgium","Senegal":"Senegal","Turkey":"Türkiye","Türkiye":"Türkiye",
   "Morocco":"Morocco","Colombia":"Colombia","Uruguay":"Uruguay","Ecuador":"Ecuador",
   "Switzerland":"Switzerland","Croatia":"Croatia","Ivory Coast":"Ivory Coast","Côte d'Ivoire":"Ivory Coast",
-  "Japan":"Japan","Sweden":"Sweden","United States":"USA","USA":"USA","Austria":"Austria","Mexico":"Mexico",
+  "Cote d'Ivoire":"Ivory Coast","Cote dIvoire":"Ivory Coast",
+  "Japan":"Japan","Sweden":"Sweden","United States":"USA","United States of America":"USA","USA":"USA",
+  "Austria":"Austria","Mexico":"Mexico",
   "Algeria":"Algeria","Scotland":"Scotland","Paraguay":"Paraguay","Czechia":"Czechia","Czech Republic":"Czechia",
-  "Canada":"Canada","Korea Republic":"South Korea","South Korea":"South Korea","DR Congo":"Congo DR","Congo DR":"Congo DR",
+  "Canada":"Canada","Korea Republic":"South Korea","South Korea":"South Korea","Republic of Korea":"South Korea",
+  "DR Congo":"Congo DR","Congo DR":"Congo DR","DRC":"Congo DR","Democratic Republic of the Congo":"Congo DR",
   "Australia":"Australia","Egypt":"Egypt","Uzbekistan":"Uzbekistan","Ghana":"Ghana",
   "Bosnia and Herzegovina":"Bosnia & Herz","Bosnia & Herzegovina":"Bosnia & Herz",
-  "Panama":"Panama","Iran":"Iran","Jordan":"Jordan","Tunisia":"Tunisia",
+  "Bosnia-Herzegovina":"Bosnia & Herz","Bosnia":"Bosnia & Herz","BIH":"Bosnia & Herz",
+  "Panama":"Panama","Iran":"Iran","IR Iran":"Iran","Islamic Republic of Iran":"Iran",
+  "Jordan":"Jordan","Tunisia":"Tunisia",
   "New Zealand":"New Zealand","Haiti":"Haiti","Saudi Arabia":"Saudi Arabia","Iraq":"Iraq",
-  "South Africa":"South Africa","Cape Verde":"Cape Verde","Curaçao":"Curaçao","Qatar":"Qatar",
+  "South Africa":"South Africa","Cape Verde":"Cape Verde","Cabo Verde":"Cape Verde",
+  "Curaçao":"Curaçao","Curacao":"Curaçao","Qatar":"Qatar",
 };
+
+// Normalize a string for fuzzy matching — lowercase, strip accents/punctuation
+function normalizeTeamName(name) {
+  return (name || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // strip accents
+    .replace(/[^a-z0-9]/g, ""); // strip spaces/punctuation
+}
+
+// Build a normalized lookup of our 48 team names for fallback matching
+function buildNormalizedLookup(teams) {
+  const lookup = {};
+  teams.forEach(t => { lookup[normalizeTeamName(t.name)] = t.name; });
+  return lookup;
+}
+
+function resolveTeamName(apiName, normalizedLookup) {
+  if (TEAM_NAME_MAP[apiName]) return TEAM_NAME_MAP[apiName];
+  const normalized = normalizeTeamName(apiName);
+  if (normalizedLookup[normalized]) return normalizedLookup[normalized];
+  // Try partial match — API name contains our team name or vice versa
+  for (const [norm, ourName] of Object.entries(normalizedLookup)) {
+    if (normalized.includes(norm) || norm.includes(normalized)) return ourName;
+  }
+  return apiName; // fallback — won't match any of our teams, harmless
+}
 
 async function fetchWCResults() {
   try {
@@ -51,6 +83,7 @@ const KO_PTS_MAP = { Groups:0, R16:3, QF:6, SF:9, Final:12, Winner:15 };
 const STAGE_RANK = { Groups:0, R16:1, QF:2, SF:3, Final:4, Winner:5 };
 
 function processMatches(matches, currentTeamPoints) {
+  const normalizedLookup = buildNormalizedLookup(WC2026_TEAMS);
   const teamStats   = {}; // W/D/L per team
   const teamStages  = {}; // furthest stage reached per team
   const champSet    = new Set(); // teams that won the final
@@ -58,8 +91,8 @@ function processMatches(matches, currentTeamPoints) {
   matches.forEach(match => {
     const homeRaw  = match.homeTeam?.name;
     const awayRaw  = match.awayTeam?.name;
-    const home     = TEAM_NAME_MAP[homeRaw] || homeRaw;
-    const away     = TEAM_NAME_MAP[awayRaw] || awayRaw;
+    const home     = resolveTeamName(homeRaw, normalizedLookup);
+    const away     = resolveTeamName(awayRaw, normalizedLookup);
     const hScore   = match.score?.fullTime?.home;
     const aScore   = match.score?.fullTime?.away;
     const round    = match.stage || match.matchday;
