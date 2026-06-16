@@ -66,6 +66,7 @@ async function fetchWCResults() {
   }
 }
 
+
 // Map API round names to our stage names
 const ROUND_STAGE_MAP = {
   "GROUP_STAGE":           "Groups",
@@ -224,6 +225,18 @@ const STAGE_COLOR = {
   QF:"#a3e635", R16:"#60a5fa", Groups:"#6b7a99",
 };
 
+// Flag color theme per Pot 1 nation -- used to tint each player's leaderboard card
+const POT1_FLAG_COLORS = {
+  France:        ["#274690", "#cc3333"],
+  Spain:         ["#c8a951", "#a32d2d"],
+  England:       ["#a32d2d", "#e8eaf0"],
+  Brazil:        ["#1d9e75", "#facc15"],
+  Portugal:      ["#1d9e75", "#a32d2d"],
+  Netherlands:   ["#e8602a", "#274690"],
+  Argentina:     ["#7ec8e3", "#facc15"],
+  Germany:       ["#2a2a2a", "#facc15"],
+};
+
 const STAGES = ["Groups","R16","QF","SF","Final","Winner"];
 
 // Default all teams to 0 pts / Groups
@@ -236,7 +249,7 @@ const getTeam = (name) => WC2026_TEAMS.find(t => t.name === name);
 
 // Sample draw — 8 players × 6 pots
 const SAMPLE_PLAYERS = [
-  { name:"Christian", teams:[] },
+  { name:"Chan", teams:[] },
   { name:"Teon",      teams:[] },
   { name:"Beto",      teams:[] },
   { name:"Bird",      teams:[] },
@@ -269,7 +282,7 @@ export default function App() {
 
   // ── DRAW REVEAL STATE ─────────────────────────────────────────────────────
   const [drawMode, setDrawMode]         = useState("setup"); // setup | reveal | done
-  const [drawAssignments, setDrawAssignments] = useState({}); // { "France": "Christian", ... }
+  const [drawAssignments, setDrawAssignments] = useState({}); // { "France": "Chan", ... }
   const [revealedCards, setRevealedCards]     = useState(new Set());
   const [currentPot, setCurrentPot]           = useState(0); // 0-5
   const [flippingCard, setFlippingCard]       = useState(null);
@@ -357,6 +370,7 @@ export default function App() {
   const currentPotAllRevealed = currentPotTeams.length > 0 &&
     currentPotTeams.every(t => revealedCards.has(t.name));
   const [syncMsg, setSyncMsg]     = useState("");
+
 
   const syncResults = async () => {
     setSyncing(true);
@@ -506,6 +520,13 @@ export default function App() {
     .sort((a, b) => b.total !== a.total ? b.total - a.total : b.koWins !== a.koWins ? b.koWins - a.koWins : b.groupWins - a.groupWins);
 
   const medalColor = (i) => ["#c8a951","#9ca3af","#cd7f32"][i] || "#1a2540";
+
+  // Find a player's Pot 1 team and its flag color theme
+  const getPlayerPot1 = (p) => {
+    const pot1Name = p.teams.find(tname => getTeam(tname)?.pot === "pot1");
+    if (!pot1Name) return null;
+    return { team: getTeam(pot1Name), colors: POT1_FLAG_COLORS[pot1Name] || ["#c8a951","#1a2540"] };
+  };
 
   const toggleBreakdown = (pi, tname) => {
     if (openBreakdown?.pi===pi && openBreakdown?.tname===tname) setOpenBreakdown(null);
@@ -950,10 +971,23 @@ export default function App() {
                     const bc = medalColor(i);
                     const isEditingResults = editingResultsFor === p.origIdx;
                     const tiedAbove = i > 0 && leaderboard[i-1].total === p.total;
+                    const pot1Info = getPlayerPot1(p);
+                    const flagColors = pot1Info?.colors || ["#1a2540","#0d1424"];
+                    const isFirst = i === 0;
+                    const isSecond = i === 1;
+                    const borderWidth = isFirst ? 3 : isSecond ? 2 : 1;
+                    const borderColor = isFirst ? "#f0c040" : isSecond ? "#c0c4cc" : "#1a2540";
+                    const cardBg = `linear-gradient(135deg, ${flagColors[0]}26, ${flagColors[1]}1a, #0d1424 70%)`;
                     return (
-                      <div key={p.origIdx} style={{ background:"#0d1424", border:`1px solid ${bc}`, borderRadius:14, overflow:"hidden" }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 18px", borderBottom:"1px solid #1a2540" }}>
+                      <div key={p.origIdx} style={{
+                        background: cardBg,
+                        border:`${borderWidth}px solid ${borderColor}`,
+                        borderRadius:14, overflow:"hidden",
+                        boxShadow: isFirst ? "0 0 24px rgba(240,192,64,0.25)" : isSecond ? "0 0 16px rgba(192,196,204,0.15)" : "none",
+                      }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 18px", borderBottom:"1px solid rgba(255,255,255,0.08)" }}>
                           <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:30, fontWeight:900, color:bc, minWidth:36 }}>#{i+1}</span>
+                          <span style={{ fontSize:30, lineHeight:1 }}>{pot1Info?.team?.flag || "🏳️"}</span>
                           <div style={{ flex:1 }}>
                             <div style={{ fontSize:16, fontWeight:700 }}>{i===0?"👑 ":""}{p.name}</div>
                             <div style={{ fontSize:11, color:"#4a5880", marginTop:2 }}>
@@ -1092,7 +1126,7 @@ export default function App() {
                   <div style={{ fontSize:10, fontWeight:700, letterSpacing:2, textTransform:"uppercase", padding:"3px 10px", borderRadius:20, background:"#f8717122", border:"1px solid #f8717155", color:"#f87171" }}>
                     🔒 Admin Only
                   </div>
-                  <div style={{ fontSize:11, color:"#2a3550" }}>Do not touch unless you are Christian</div>
+                  <div style={{ fontSize:11, color:"#2a3550" }}>Do not touch unless you are Chan</div>
                 </div>
                 <div style={{ background:"#0a0608", border:"1px solid #f8717133", borderRadius:12, padding:"16px 18px", display:"flex", alignItems:"center", gap:14, flexWrap:"wrap" }}>
                   <div style={{ flex:1 }}>
