@@ -519,7 +519,7 @@ export default function App() {
     .map((p, origIdx) => ({ ...p, origIdx, total: getPlayerTotal(p), koWins: getPlayerKOWins(p), groupWins: getPlayerGroupWins(p), record: getPlayerRecord(p) }))
     .sort((a, b) => b.total !== a.total ? b.total - a.total : b.koWins !== a.koWins ? b.koWins - a.koWins : b.groupWins - a.groupWins);
 
-  const medalColor = (i) => ["#c8a951","#9ca3af","#cd7f32"][i] || "#1a2540";
+  const medalColor = (i) => ["#f0c040","#c0c4cc"][i] || "#e8eaf0";
 
   // Find a player's Pot 1 team and its flag color theme
   const getPlayerPot1 = (p) => {
@@ -977,7 +977,7 @@ export default function App() {
                     const isSecond = i === 1;
                     const borderWidth = isFirst ? 3 : isSecond ? 2 : 1;
                     const borderColor = isFirst ? "#f0c040" : isSecond ? "#c0c4cc" : "#1a2540";
-                    const cardBg = `linear-gradient(135deg, ${flagColors[0]}26, ${flagColors[1]}1a, #0d1424 70%)`;
+                    const cardBg = `linear-gradient(135deg, ${flagColors[0]}2e, ${flagColors[1]}22)`;
                     return (
                       <div key={p.origIdx} style={{
                         background: cardBg,
