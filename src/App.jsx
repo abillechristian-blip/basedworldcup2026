@@ -77,10 +77,7 @@ const ROUND_STAGE_MAP = {
   "FINAL":                 "Final",
 };
 
-// KO points per stage (cumulative — same as app scoring)
-const KO_PTS_MAP = { Groups:0, R16:3, QF:6, SF:9, Final:12, Winner:15 };
-
-// Stage rank for comparison
+// Stage rank for comparison (used to track furthest stage reached)
 const STAGE_RANK = { Groups:0, R16:1, QF:2, SF:3, Final:4, Winner:5 };
 
 function processMatches(matches, currentTeamPoints) {
@@ -132,13 +129,12 @@ function processMatches(matches, currentTeamPoints) {
   const updated = { ...currentTeamPoints };
 
   Object.entries(teamStats).forEach(([team, record]) => {
-    const groupPts = record.w * 3 + record.d;
-    const stage    = teamStages[team] || "Groups";
-    const isChamp  = champSet.has(team);
+    const isChamp    = champSet.has(team);
+    const stage      = teamStages[team] || "Groups";
     const finalStage = isChamp ? "Winner" : stage;
-    const koPts    = KO_PTS_MAP[finalStage] || 0;
-    const bonus    = isChamp ? 6 : 0;
-    const total    = groupPts + koPts + bonus;
+    const bonus      = isChamp ? 6 : 0;
+    // Simple scoring: every win = +3, every draw = +1, champion bonus = +6 only
+    const total      = (record.w * 3) + record.d + bonus;
 
     updated[team] = {
       pts:   total,
